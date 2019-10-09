@@ -16,10 +16,10 @@ def date_convert(df):
         df['Week'] = df['Date'].dt.week
         df['Day'] = df['Date'].dt.day
         
-        df = df.drop(axis=1, labels='Date')
+        #df = df.drop(axis=1, labels='Date')
         
-        cols_after = df.columns.tolist()[0:8]
-        cols_before = df.columns.tolist()[8:]
+        cols_after = df.columns.tolist()[0:9]
+        cols_before = df.columns.tolist()[9:]
         df = df.loc[:, cols_before + cols_after]
         
     else:
