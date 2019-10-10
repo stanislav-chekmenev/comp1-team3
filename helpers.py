@@ -48,7 +48,7 @@ def plot_hists(data, name):
         
         
         
-def metric(preds, actuals):
+def metric(actuals, preds):
     preds = preds.reshape(-1)
     actuals = actuals.reshape(-1)
     assert preds.shape == actuals.shape
