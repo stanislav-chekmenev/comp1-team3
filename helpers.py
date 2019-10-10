@@ -1,6 +1,15 @@
 import cufflinks as cf
 from datetime import datetime
 import numpy as np
+from operator import itemgetter
+import plotly.offline as offline
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import ElasticNet
+
+import cufflinks as cf
+from datetime import datetime
+import numpy as np
 import plotly.offline as offline
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -62,47 +71,79 @@ def cat_to_int(df, columnlist):
     df = df.drop(columnlist, axis=1, errors='ignore')   
     return df       
 
-# Replaces NaNs with Zeros and transforms to Int-Format
+# Transforms to Int-Format
 def float_to_int(df, columnlist):
     for i in columnlist:
-        df[i].fillna(0, inplace=True)
         df[i] = df[i].astype(int)
     return df
 
 # Convert Year and Weeknumber to Datetime-Format
 def year_week(y, w):
-    return datetime.datetime.strptime(f'{y} {w} 1', '%G %V %u')
+    return datetime.strptime(f'{y} {w} 1', '%G %V %u')
 
 
-def parameter_search(X, y, method, params, random_seed, random=False):
+def parameter_search(X, y, method, params, random_seed):
     random_seed
-    valid = {'elastic', 'rf', 'xgboost'}
+    valid = {'elastic', 'rf', 'xgboost', 'stack'}
     if name not in valid:
         raise ValueError("Name must be one of %r." % valid)
         
     if name == 'elastic':
         if not type(params) == list:
-            raise ValueError('params is not a list, please support a list of parameters')
+            raise ValueError('params is not a dictionary, please support a dictionary of parameters')
         else:
-        params = params
-        score = []
+            params = params
+            score = []
+            end = np.floor(0.8 * X.shape[0]).astype(int)
+            X_train = np.array(X)[:end]
+            y_train = np.array(y)[:end]
+            X_cv = np.array(X)[end:]
+            y_cv = np.array(y)[end:]
 
         # Grid search for elastic net
-        for i in params:
-            X_train, X_cv, y_train, y_cv = train_test_split(X, y, test_size=0.2, random_state=np.random.randint(0, 1e6))
-            elastic = ElasticNet(random_state=random_seed, alpha=i)
-            elastic.fit(X_train, y_train)
-            preds = elastic.predict(X_cv)
-            score.append(adam_metric(y_cv, preds))
+        for ratio in  params['ratio']:
+            for alpha in params['alpha']:
+                elastic = ElasticNet(random_state=None, alpha=alpha, l1_ratio=ratio)
+                elastic.fit(X_train, y_train)
+                preds = elastic.predict(X_cv)                                       
+                score.append((alpha, ratio, adam_metric(y_cv, preds)))
 
+                # Get best score
+                best_params = min(score, key=itemgetter(2))[0:2]
+        
 
-best_param = params[np.argmax(np.array(score))]
+    if name == 'rf':
+        if not type(params) == dict:
+            raise ValueError('params is not a dictionary, please support a dictionary of parameters')
+        else:
+            steps = len(params['n_estimators']) * len(params['max_depth'] * len(params['max_features']))
+            
+            params = params
+            score = []
+            end = np.floor(0.8 * X.shape[0]).astype(int)
+            X_train = np.array(X)[:end]
+            y_train = np.array(y)[:end]
+            X_cv = np.array(X)[end:]
+            y_cv = np.array(y)[end:]
 
-# Refit 
-elastic = ElasticNet(random_state=seed, alpha=best_param)
-elastic.fit(X, y)
+            # Grid search for elastic net
+            for step in range(steps):
+                n_estimators = np.random.choice(params['n_estimators'])
+                max_depth = np.random.choice(params['max_depth'])
+                max_features = np.random.choice(params['max_features'])
+
+                rf = RandomForestRegressor(n_estimators=n_estimators,
+                                                max_depth=max_depth,
+                                                max_features=max_features)
+                rf.fit(X_train, y_train)
+                preds = rf.predict(X_cv)                                       
+                score.append((n_estimators, max_depth, max_features, adam_metric(y_cv, preds)))
+
+            # Get best score
+            best_params = min(score, key=itemgetter(3))[0:3]
+        
     
-    
+    return best_params
     
     
     
