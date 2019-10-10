@@ -62,18 +62,17 @@ def cat_to_int(df, columnlist):
     df = df.drop(columnlist, axis=1, errors='ignore')   
     return df       
 
-# Replaces NaNs with Zeros and transforms to Int-Format
+# Transforms to Int-Format
 def float_to_int(df, columnlist):
     for i in columnlist:
-        df[i].fillna(0, inplace=True)
         df[i] = df[i].astype(int)
     return df
 
 # Convert Year and Weeknumber to Datetime-Format
 def year_week(y, w):
-    return datetime.datetime.strptime(f'{y} {w} 1', '%G %V %u')
+    return datetime.strptime(f'{y} {w} 1', '%G %V %u')
 
-
+'''
 def parameter_search(X, y, method, params, random_seed, random=False):
     random_seed
     valid = {'elastic', 'rf', 'xgboost'}
@@ -84,8 +83,8 @@ def parameter_search(X, y, method, params, random_seed, random=False):
         if not type(params) == list:
             raise ValueError('params is not a list, please support a list of parameters')
         else:
-        params = params
-        score = []
+            params = params
+            score = []
 
         # Grid search for elastic net
         for i in params:
@@ -101,7 +100,7 @@ best_param = params[np.argmax(np.array(score))]
 # Refit 
 elastic = ElasticNet(random_state=seed, alpha=best_param)
 elastic.fit(X, y)
-    
+'''    
     
     
     
