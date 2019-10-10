@@ -53,5 +53,22 @@ def metric(actuals, preds):
     actuals = actuals.reshape(-1)
     assert preds.shape == actuals.shape
     return 100 * np.linalg.norm((actuals - preds) / actuals) / np.sqrt(preds.shape[0])
-        
-        
+
+
+# One Hot Encoding for Catergory Columns in Dataframe + removes Original Column afterwards
+def cat_to_int(df, columnlist):
+    for i in columnlist:
+        df = pd.concat([df, pd.get_dummies(df[i], prefix=i)], axis=1)
+    df = df.drop(columnlist, axis=1, errors='ignore')   
+    return df       
+
+# Replaces NaNs with Zeros and transforms to Int-Format
+def float_to_int(df, columnlist):
+    for i in columnlist:
+        df[i].fillna(0, inplace=True)
+        df[i] = df[i].astype(int)
+    return df
+
+# Convert Year and Weeknumber to Datetime-Format
+def year_week(y, w):
+    return datetime.datetime.strptime(f'{y} {w} 1', '%G %V %u')
