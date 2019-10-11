@@ -152,7 +152,7 @@ def one_hot_enc_test(Test):
     return Test
 
 def data_transformation(df,type='Train'):
-    global global_sales
+    #global global_sales
     # Convert CompetitionYear and CompetitionMonth to datetime format
     df_subset_Comp = df.loc[(~df['CompetitionOpenSinceYear'].isnull()) & (~df['CompetitionOpenSinceMonth'].isnull()), \
                             ['CompetitionOpenSinceYear','CompetitionOpenSinceMonth']]
@@ -231,7 +231,8 @@ def data_transformation(df,type='Train'):
         mean_sales['Rel'].to_csv('data/MeanSales.csv', header=False)
         df['ExpectedSales'] = df['Customers'] * df['Rel']
         global_sales = np.mean(df['Sales']/df['Customers'])
-        print(global_sales)
+        with open('global_sales.txt', 'w') as f:
+            f.write(str(global_sales))  
     else:
         
         b = pd.read_csv('data/MeanSales.csv', header=None)
@@ -241,7 +242,9 @@ def data_transformation(df,type='Train'):
                 rows['Rel'] = b[rows['StoreInfo']]
                 rows['ExpectedSales'] = rows['Customers'] * rows['Rel']
             else:
-                rows['ExpectedSales'] = global_sales
+                with open('global_sales.txt') as f:
+                    global_sale = f.read()
+                rows['ExpectedSales'] = global_sale
     
     #Set Feature EXPECTED SALES2 (Adam's idea)
     
