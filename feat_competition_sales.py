@@ -38,28 +38,30 @@ def create_features_competition(full_train):
 
 def create_features_customers(full_train):
     full_train['store_info'] = full_train['Assortment'] + full_train['StoreType']
-    #fit OLS
-    mod = smf.ols(formula='Sales ~ Customers + store_info -1', data=full_train)
-    res = mod.fit()
-    customer_weight = res.params[9]
-    storetype_weights = res.params[0:9]
-    storetype_weights.index = ['aa','ab', 'ac', 'ad', 'bb', 'ca', 'cb', 'cc', 'cd']
-    full_train['expected_sales'] = np.nan
-    full_train['weight'] = np.nan
-    a = storetype_weights.to_dict()
-    full_train['weight'] = full_train['store_info'].map(a)
-    #Set Feature EXPECTED SALES
-    full_train.expected_sales[full_train.Sales > 0] = (full_train.Customers[full_train.Sales > 0] * customer_weight) + full_train.weight[full_train.Sales > 0]
-   
+    '''
+        #fit OLS
+        mod = smf.ols(formula='Sales ~ Customers + store_info -1', data=full_train)
+        res = mod.fit()
+        customer_weight = res.params[9]
+        storetype_weights = res.params[0:9]
+        storetype_weights.index = ['aa','ab', 'ac', 'ad', 'bb', 'ca', 'cb', 'cc', 'cd']
+        full_train['expected_sales'] = np.nan
+        full_train['weight'] = np.nan
+        a = storetype_weights.to_dict()
+        full_train['weight'] = full_train['store_info'].map(a)
+        #Set Feature EXPECTED SALES
+        full_train.expected_sales[full_train.Sales > 0] = (full_train.Customers[full_train.Sales > 0] * customer_weight) +\
+        full_train.weight[full_train.Sales > 0]
+    '''   
     # calculate mean sales per number of customers per each store type
-    mean_sales = full_train.loc[full_train.Sales > 0, ['Sales', 'Customers', 'expected_sales', 'store_info']].groupby('store_info').mean()
+    mean_sales = full_train.loc[full_train.Sales > 0, ['Sales', 'Customers', 'store_info']].groupby('store_info').mean()
     mean_sales['rel'] = mean_sales['Sales']/mean_sales['Customers']
     b = mean_sales['rel'].to_dict()
     full_train['rel'] = full_train['store_info'].map(b)
     
     #Set Feature EXPECTED SALES2 (Adam's idea)
-    full_train['expected_sales2'] = np.nan
-    full_train['expected_sales2'] = full_train['Customers'] * full_train['rel']
+    full_train['expected_sales'] = np.nan
+    full_train['expected_sales'] = full_train['Customers'] * full_train['rel']
 
     return full_train
 
@@ -70,4 +72,4 @@ f_features =  ['Year', 'Quarter', 'Month', 'Week', 'Day', 'Date', 'Store', 'DayO
        'CompetitionOpenSinceMonth', 'CompetitionOpenSinceYear', 'Promo2',
        'Promo2SinceWeek', 'Promo2SinceYear', 'PromoInterval', 
        'competition_active', 'competition_days', 'competition_intensity',
-       'expected_sales', 'rel', 'expected_sales2']
+       'expected_sales', 'rel'] #'expected_sales2']
