@@ -138,6 +138,7 @@ def one_hot_enc_test(Test):
     for col in cols:
         Test[col] = Test[col].astype(str)
     
+    ohe = pickle.load(open('metadata/ohe_all.dat', "wb"))
     ohe_test = ohe.transform(Test[cols]).toarray()
         
     # Drop columns
