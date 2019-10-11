@@ -7,7 +7,9 @@ import plotly.offline as offline
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import ElasticNet
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 from tqdm import tqdm
+import pickle
 
 
 
@@ -77,10 +79,80 @@ def float_to_int(df, columnlist):
 def year_week(y, w):
     return datetime.strptime(f'{y} {w} 1', '%G %V %u')
 
-def data_transformation(df):
-    # convert to Int
-    #df = helpers.float_to_int(df, {'Promo2SinceYear', 'Promo2SinceWeek', 'CompetitionOpenSinceMonth', 'CompetitionOpenSinceYear'})
+def data_split_transform(df):
+    # Split
+    end_val = np.floor(0.8 * df.shape[0]).astype(int)
+    end_test = np.floor(0.9 * df.shape[0]).astype(int)
+
+    Train = df.loc[:end_val]
+    Val = df.loc[end_val:end_test]
+    Test = df.loc[end_test:]
     
+    Train = data_transformation(Train, type='Train')
+    Val = data_transformation(Val,type='Val')
+    Test = data_transformation(Test, type='Test')
+    
+    return Train, Val, Test
+
+def one_hot_enc(Train, Val, Test):
+    # OHE
+    datalist = [Train, Val, Test]
+    cols = Train.select_dtypes(include='object').columns.tolist()
+    for data in datalist:
+        for col in cols:
+            data[col] = data[col].astype(str)
+    ohe = OneHotEncoder(handle_unknown='ignore')  
+
+    ohe_train = pd.DataFrame()
+    ohe_val = pd.DataFrame()
+    ohe_test = pd.DataFrame()
+
+    for col in cols:
+        ohe.fit(np.array(Train[col]).reshape(-1,1))
+        pickle.dump(ohe, open('ohe_' + col, "wb"))
+        ohe_train_tmp = pd.DataFrame(columns=ohe.categories_, \
+                                     data=ohe.transform(np.array(Train[col]).reshape(-1,1)).toarray())
+        ohe_val_tmp = pd.DataFrame(columns=ohe.categories_, \
+                                     data=ohe.transform(np.array(Val[col]).reshape(-1,1)).toarray()) 
+        ohe_test_tmp = pd.DataFrame(columns=ohe.categories_, \
+                                     data=ohe.transform(np.array(Test[col]).reshape(-1,1)).toarray()) 
+        ohe_train = pd.concat([ohe_train, ohe_train_tmp], axis=1)
+        ohe_val = pd.concat([ohe_val, ohe_val_tmp], axis=1)
+        ohe_test = pd.concat([ohe_test, ohe_test_tmp], axis=1)
+        
+    # Drop columns
+    for data in datalist:
+        data.drop(axis=1, labels=cols, inplace=True)
+    
+    # Concat
+    Train = pd.concat([Train.reset_index(), ohe_train], axis=1)
+    Val = pd.concat([Val.reset_index(), ohe_val], axis=1)
+    Test = pd.concat([Test.reset_index(), ohe_test], axis=1)
+    return Train, Val, Test
+
+def one_hot_enc_test(Test):
+    # OHE
+    cols = Test.select_dtypes(include='object').columns.tolist()
+    for col in cols:
+        Test[col] = Test[col].astype(str)
+    
+    ohe_test = pd.DataFrame()
+
+    for col in cols:
+        ohe = pickle.load(open('ohe_' + col, "rb"))
+        ohe_test_tmp = pd.DataFrame(columns=ohe.categories_, \
+                                     data=ohe.transform(np.array(Test[col]).reshape(-1,1)).toarray()) 
+        ohe_test = pd.concat([ohe_test, ohe_test_tmp], axis=1)
+        
+    # Drop columns
+    Test.drop(axis=1, labels=cols, inplace=True)
+    
+    # Concat
+    Test = pd.concat([Test.reset_index(), ohe_test], axis=1)
+    return Test
+
+def data_transformation(df,type='Train'):
+    #global global_sales
     # Convert CompetitionYear and CompetitionMonth to datetime format
     df_subset_Comp = df.loc[(~df['CompetitionOpenSinceYear'].isnull()) & (~df['CompetitionOpenSinceMonth'].isnull()), \
                             ['CompetitionOpenSinceYear','CompetitionOpenSinceMonth']]
@@ -88,6 +160,10 @@ def data_transformation(df):
     df_subset_Comp['CompetitionStart'] = df_subset_Comp['CompetitionOpenSinceYear'].astype(str) + '-' + \
     df_subset_Comp['CompetitionOpenSinceMonth'].astype(str)  + '-01' 
     df['CompetitionStart'] = pd.to_datetime(df_subset_Comp['CompetitionStart'])
+    
+    # Calculate is Competition is active and how long the competition is active 
+    df['CompetitionActive'] = np.where(df['CompetitionStart'] <= df['Date'], 1, 0)
+    df['CompetitionDays'] = (df['Date'] - df['CompetitionStart'])/np.timedelta64(1,'D')
     
     # Convert Promoyear and Promoweekno to datetime format
     df_subset = df.loc[(~df['Promo2SinceYear'].isnull()) & (~df['Promo2SinceWeek'].isnull()), \
@@ -99,10 +175,7 @@ def data_transformation(df):
     df['PromoDuration'] = (df['Date'] - df['PromoStart'])/np.timedelta64(1,'D')
     df['PromoDuration'].fillna(0, inplace=True)
     
-    # Calculate is Competition is active and how long the competition is active 
-    df['CompetitionActive'] = np.where(df['CompetitionStart'] <= df['Date'], 1, 0)
-    df['CompetitionDays'] = (df['Date'] - df['CompetitionStart'])/np.timedelta64(1,'D')
-    
+    # Create RunnningPromo Column
     df['RunningAnyPromo'] = 0
     months_abbr = []
 
@@ -112,7 +185,7 @@ def data_transformation(df):
     for i in months_abbr:
         mask = (df['PromoInterval'].str.contains(i[1], na=False)) & (df['Month']==i[0]) & (df['Promo2']==1) | df['Promo']==1
         df.loc[mask, 'RunningAnyPromo'] = 1
-        
+    
     # Sets RunningPromo to 1 if Months in Substring of PromoIntervall and current month match 
     df['RunningPromo2'] = 0
     months_abbr = []
@@ -130,7 +203,7 @@ def data_transformation(df):
     
     #Replace NaN in Customers with Mean(Customers), but if Store not open set Customers to 0
     df['Customers'].fillna(df['Customers'].mean(), inplace=True)
-    df.loc[df['Open'] == 0, 'Customers'] = 0
+    df.loc[df['Open'] == 0, 'Customers'] = 0 
     
     df = df.drop({'Date','CompetitionStart','PromoStart','PromoInterval','Promo','Promo2','DayOfWeek'}, axis=1, errors='ignore') 
     for i in {'Open', 'StateHoliday', 'SchoolHoliday'}:
@@ -140,6 +213,7 @@ def data_transformation(df):
 
     # Nas for comp days
     df['CompetitionDays'].fillna(0, inplace=True)
+    
     # set feature COMPETITION INTENSITY
     df['CompetitionIntensity'] = np.log((df['CompetitionDays']*(1/(df['CompetitionDistance'] + 1))+1) + 1e-2)
     df['CompetitionIntensity'].replace([np.inf, -np.inf], np.nan)
@@ -147,15 +221,36 @@ def data_transformation(df):
     
     # calculate mean sales per number of customers per each store type
     df['StoreInfo'] = df['Assortment'] + df['StoreType']
-    mean_sales = df.loc[df.Sales > 0, ['Sales', 'Customers', 'StoreInfo']].groupby('StoreInfo').mean()
-    mean_sales['Rel'] = mean_sales['Sales']/mean_sales['Customers']
-    b = mean_sales['Rel'].to_dict()
-    df['Rel'] = df['StoreInfo'].map(b)
+    df['Rel'] = np.nan
+    df['ExpectedSales'] = np.nan
+    if type == 'Train':
+        mean_sales = df.loc[df.Sales > 0, ['Sales', 'Customers', 'StoreInfo']].groupby('StoreInfo').mean()
+        mean_sales['Rel'] = mean_sales['Sales']/mean_sales['Customers']
+        b = mean_sales['Rel'].to_dict()
+        df['Rel'] = df['StoreInfo'].map(b)
+        mean_sales['Rel'].to_csv('data/MeanSales.csv', header=False)
+        df['ExpectedSales'] = df['Customers'] * df['Rel']
+        global_sales = np.mean(df['Sales']/df['Customers'])
+        with open('global_sales.txt', 'w') as f:
+            f.write(str(global_sales))  
+    else:
+        
+        b = pd.read_csv('data/MeanSales.csv', header=None)
+        b = b.to_dict()
+        for idx, rows in df.iterrows():
+            if rows['StoreInfo'] in b.keys():
+                rows['Rel'] = b[rows['StoreInfo']]
+                rows['ExpectedSales'] = rows['Customers'] * rows['Rel']
+            else:
+                with open('global_sales.txt') as f:
+                    global_sale = f.read()
+                rows['ExpectedSales'] = global_sale
     
     #Set Feature EXPECTED SALES2 (Adam's idea)
-    df['ExpectedSales'] = np.nan
-    df['ExpectedSales'] = df['Customers'] * df['Rel']
     
+    
+    #print('new Columns created: CompetitionActive, CompetitionDays, PromoDuration, RunningAnyPromo, RunningPromo2, RelativeSales per Number of Customers per StoreType, ExpectedSales')
+                
     return df
 
 
