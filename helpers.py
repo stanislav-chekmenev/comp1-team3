@@ -370,3 +370,22 @@ def parameter_search(X, y, method, params, steps=None):
         pass
     
     return best_params
+
+def predict_stacked(X, models, coefs):
+    pca = pickle.load(open("pca.pickle.dat", "rb"))
+    X_pca = pca.transform(X)
+    valid_models = {'xgb', 'rf', 'el_net'}
+    if models.keys() not in valid_models:
+        raise ValueError("Model names must be one of %r." % valid_models)
+        
+    if not type(models) == dict & type(coefs) == dict:
+        raise ValueError('models and coefs are dictionaries, please support a dictionary')
+    else:    
+        xgb_mod = models['xgb']
+        rf_mod = models['rf']
+        el_net_mod = models['el_net']
+        xgb_coef = coefs['xgb']
+        rf_coef = coefs['rf']
+        el_net_coef = coefs['el_net']
+    
+    return np.sum(xgb_coef * xgb_mod.predict(X) + rf_coed * rf_mod.predict(X) + el_net_coef * el_net.predict(X_pca))    
