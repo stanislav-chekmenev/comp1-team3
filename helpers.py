@@ -231,7 +231,7 @@ def data_transformation(df,type='Train'):
         mean_sales['Rel'] = mean_sales['Sales']/mean_sales['Customers']
         b = mean_sales['Rel'].to_dict()
         df['Rel'] = df['StoreInfo'].map(b)
-        mean_sales['Rel'].to_csv('data/MeanSales.csv', header=False)
+        mean_sales['Rel'].to_csv('metadata/MeanSales.csv', header=False)
         df['ExpectedSales'] = df['Customers'] * df['Rel']
         global_sales = np.mean(df['Sales']/df['Customers'])
         with open('global_sales.txt', 'w') as f:
