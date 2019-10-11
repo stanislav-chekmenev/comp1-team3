@@ -1,5 +1,4 @@
 import ast
-import cufflinks as cf
 from datetime import date, datetime
 import numpy as np
 from operator import itemgetter
@@ -139,22 +138,16 @@ def one_hot_enc_test(Test):
     for col in cols:
         Test[col] = Test[col].astype(str)
     
-    ohe_test = pd.DataFrame()
-
-    for col in cols:
-        ohe = pickle.load(open('metadata/ohe_' + col, "rb"))
-        ohe_test_tmp = pd.DataFrame(columns=ohe.categories_, \
-                                     data=ohe.transform(np.array(Test[col]).reshape(-1,1)).toarray()) 
-        ohe_test = pd.concat([ohe_test, ohe_test_tmp], axis=1)
+    ohe_test = ohe.transform(Test[cols]).toarray()
         
     # Drop columns
     Test.drop(axis=1, labels=cols, inplace=True)
     
     # Concat
-    Test = pd.concat([Test.reset_index(), ohe_test], axis=1)
+    Test = pd.concat([Test.reset_index(), pd.DataFrame(ohe_test)], axis=1).drop(axis=1, labels='index')
     return Test
 
-def data_transformation(df,type='Train'):
+def data_transformation(df,typef='Train'):
     #global global_sales
     # Convert CompetitionYear and CompetitionMonth to datetime format
     df_subset_Comp = df.loc[(~df['CompetitionOpenSinceYear'].isnull()) & (~df['CompetitionOpenSinceMonth'].isnull()), \
@@ -226,7 +219,7 @@ def data_transformation(df,type='Train'):
     df['StoreInfo'] = df['Assortment'] + df['StoreType']
     df['Rel'] = np.nan
     df['ExpectedSales'] = np.nan
-    if type == 'Train':
+    if typef == 'Train':
         mean_sales = df.loc[df.Sales > 0, ['Sales', 'Customers', 'StoreInfo']].groupby('StoreInfo').mean()
         mean_sales['Rel'] = mean_sales['Sales']/mean_sales['Customers']
         b = mean_sales['Rel'].to_dict()
@@ -237,23 +230,31 @@ def data_transformation(df,type='Train'):
         with open('global_sales.txt', 'w') as f:
             f.write(str(global_sales))  
     else:
-        
-        b = pd.read_csv('metadata/MeanSales.csv', header=None, index_col=False).drop(axis=1, labels='index')
-        b = b.to_dict()
-        for idx, rows in df.iterrows():
-            if rows['StoreInfo'] in b.keys():
+        #print('here')
+        #b = pd.read_csv('metadata/MeanSales.csv', header=None)
+        b = {'aa' : 8.572254413299275,
+            'ab' : 6.2006132089891794,
+            'ac' :8.243135389352526,
+           'ad' :10.887419787267175,
+            'bb' :4.203748433864643,
+            'ca' :8.840190606703473,
+            'cb' :5.891724350487762,
+            'cc' :8.847774275373165,
+           'cd':11.229100554717675}
+        df['Rel'] = df['StoreInfo'].map(b)
+        df['ExpectedSales'] = df['Customers'] * df['Rel']
+        #for idx, rows in df.iterrows():
+        '''
+            if rows['StoreInfo'] in b.iloc[:,0].tolist():
+                print(
                 rows['Rel'] = b[rows['StoreInfo']]
                 rows['ExpectedSales'] = rows['Customers'] * rows['Rel']
             else:
+       
                 with open('metadata/global_sales.txt') as f:
                     global_sale = f.read()
                 rows['ExpectedSales'] = global_sale
-    
-    #Set Feature EXPECTED SALES2 (Adam's idea)
-    
-    
-    #print('new Columns created: CompetitionActive, CompetitionDays, PromoDuration, RunningAnyPromo, RunningPromo2, RelativeSales per Number of Customers per StoreType, ExpectedSales')
-                
+         '''
     return df
 
 
