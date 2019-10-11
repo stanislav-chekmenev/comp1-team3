@@ -3,7 +3,7 @@
 - to setup the environment run
 
 ```bash
-pip install requirements.txt
+pip install -r requirements.txt
 ```
 
 - Open file main_test.ipynb to predict on the test set
