@@ -9,6 +9,7 @@ from sklearn.linear_model import ElasticNet
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 from tqdm import tqdm
+import pickle
 
 
 
@@ -108,6 +109,7 @@ def one_hot_enc(Train, Val, Test):
 
     for col in cols:
         ohe.fit(np.array(Train[col]).reshape(-1,1))
+        pickle.dump(ohe, open('ohe_' + col, "wb"))
         ohe_train_tmp = pd.DataFrame(columns=ohe.categories_, \
                                      data=ohe.transform(np.array(Train[col]).reshape(-1,1)).toarray())
         ohe_val_tmp = pd.DataFrame(columns=ohe.categories_, \
@@ -127,6 +129,27 @@ def one_hot_enc(Train, Val, Test):
     Val = pd.concat([Val.reset_index(), ohe_val], axis=1)
     Test = pd.concat([Test.reset_index(), ohe_test], axis=1)
     return Train, Val, Test
+
+def one_hot_enc_test(Test):
+    # OHE
+    cols = Test.select_dtypes(include='object').columns.tolist()
+    for col in cols:
+        Test[col] = Test[col].astype(str)
+    
+    ohe_test = pd.DataFrame()
+
+    for col in cols:
+        ohe = pickle.load(open('ohe_' + col, "rb"))
+        ohe_test_tmp = pd.DataFrame(columns=ohe.categories_, \
+                                     data=ohe.transform(np.array(Test[col]).reshape(-1,1)).toarray()) 
+        ohe_test = pd.concat([ohe_test, ohe_test_tmp], axis=1)
+        
+    # Drop columns
+    Test.drop(axis=1, labels=cols, inplace=True)
+    
+    # Concat
+    Test = pd.concat([Test.reset_index(), ohe_test], axis=1)
+    return Test
 
 def data_transformation(df,type='Train'):
     global global_sales
