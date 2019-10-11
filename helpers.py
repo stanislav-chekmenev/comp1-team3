@@ -1,15 +1,18 @@
+import ast
 import cufflinks as cf
 from datetime import date, datetime
 import numpy as np
 from operator import itemgetter
 import pandas as pd
-import plotly.offline as offline
+import pickle
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.decomposition import PCA
 from sklearn.linear_model import ElasticNet
+from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 from tqdm import tqdm
-import pickle
+import xgboost as xgb
 
 
 
@@ -109,7 +112,7 @@ def one_hot_enc(Train, Val, Test):
 
     for col in cols:
         ohe.fit(np.array(Train[col]).reshape(-1,1))
-        pickle.dump(ohe, open('ohe_' + col, "wb"))
+        pickle.dump(ohe, open('metadata/ohe_' + col, "wb"))
         ohe_train_tmp = pd.DataFrame(columns=ohe.categories_, \
                                      data=ohe.transform(np.array(Train[col]).reshape(-1,1)).toarray())
         ohe_val_tmp = pd.DataFrame(columns=ohe.categories_, \
@@ -139,7 +142,7 @@ def one_hot_enc_test(Test):
     ohe_test = pd.DataFrame()
 
     for col in cols:
-        ohe = pickle.load(open('ohe_' + col, "rb"))
+        ohe = pickle.load(open('metadata/ohe_' + col, "rb"))
         ohe_test_tmp = pd.DataFrame(columns=ohe.categories_, \
                                      data=ohe.transform(np.array(Test[col]).reshape(-1,1)).toarray()) 
         ohe_test = pd.concat([ohe_test, ohe_test_tmp], axis=1)
@@ -235,14 +238,14 @@ def data_transformation(df,type='Train'):
             f.write(str(global_sales))  
     else:
         
-        b = pd.read_csv('data/MeanSales.csv', header=None)
+        b = pd.read_csv('metadata/MeanSales.csv', header=None, index_col=False).drop(axis=1, labels='index')
         b = b.to_dict()
         for idx, rows in df.iterrows():
             if rows['StoreInfo'] in b.keys():
                 rows['Rel'] = b[rows['StoreInfo']]
                 rows['ExpectedSales'] = rows['Customers'] * rows['Rel']
             else:
-                with open('global_sales.txt') as f:
+                with open('metadata/global_sales.txt') as f:
                     global_sale = f.read()
                 rows['ExpectedSales'] = global_sale
     
@@ -279,7 +282,7 @@ def parameter_search(X, y, method, params, steps=None):
                 preds = elastic.predict(X_cv)                                       
                 score.append((alpha, ratio, np.sqrt(mean_squared_error(y_cv, preds))))
 
-                with open('el_net_params.txt', 'w') as f:
+                with open('metadata/el_net_params.txt', 'w') as f:
                     f.write(str(score))                    
 
         # Get best score
@@ -310,7 +313,7 @@ def parameter_search(X, y, method, params, steps=None):
                 preds = rf.predict(X_cv)                                       
                 score.append((n_estimators, max_depth, max_features, np.sqrt(mean_squared_error(y_cv, preds))))
                 
-                with open('rf_params.txt', 'w') as f:
+                with open('metadata/rf_params.txt', 'w') as f:
                     f.write(str(score))
 
             # Get best score
@@ -360,7 +363,7 @@ def parameter_search(X, y, method, params, steps=None):
                 preds = xgb_model.predict(X_cv)                                       
                 score.append((lr, n_estimators, max_depth, subsample, colsample_bytree, colsample_bylevel, reg_lambda, \
                               np.sqrt(mean_squared_error(y_cv, preds))))
-                with open('xgb_params.txt', 'w') as f:
+                with open('metadata/xgb_params.txt', 'w') as f:
                     f.write(str(score))
 
             # Get best score
@@ -372,7 +375,7 @@ def parameter_search(X, y, method, params, steps=None):
     return best_params
 
 def predict_stacked(X, models, coefs):
-    pca = pickle.load(open("pca.pickle.dat", "rb"))
+    pca = pickle.load(open("metadata/pca.pickle.dat", "rb"))
     X_pca = pca.transform(X)
     valid_models = {'xgb', 'rf', 'el_net'}
     if models.keys() not in valid_models:
