@@ -270,13 +270,17 @@ def parameter_search(X, y, method, params, steps=None):
         # Grid search for elastic net
         for ratio in params['ratio']:
             for alpha in params['alpha']:
+                print(ratio, alpha)
                 elastic = ElasticNet(alpha=alpha, l1_ratio=ratio)
                 elastic.fit(X_train, y_train)
                 preds = elastic.predict(X_cv)                                       
-                score.append((alpha, ratio, mea(y_cv, preds)))
+                score.append((alpha, ratio, np.sqrt(mean_squared_error(y_cv, preds))))
 
-                # Get best score
-                best_params = min(score, key=itemgetter(2))[0:2]
+                with open('el_net_params.txt', 'w') as f:
+                    f.write(str(score))                    
+
+        # Get best score
+        best_params = min(score, key=itemgetter(2))[0:2]
         
     elif method == 'rf':
         if not type(params) == dict:
@@ -303,7 +307,7 @@ def parameter_search(X, y, method, params, steps=None):
                 preds = rf.predict(X_cv)                                       
                 score.append((n_estimators, max_depth, max_features, np.sqrt(mean_squared_error(y_cv, preds))))
                 
-                with open('rf_params.txt', 'w') as f:  # Use file to refer to the file object
+                with open('rf_params.txt', 'w') as f:
                     f.write(str(score))
 
             # Get best score
@@ -353,7 +357,7 @@ def parameter_search(X, y, method, params, steps=None):
                 preds = xgb_model.predict(X_cv)                                       
                 score.append((lr, n_estimators, max_depth, subsample, colsample_bytree, colsample_bylevel, reg_lambda, \
                               np.sqrt(mean_squared_error(y_cv, preds))))
-                with open('xgb_params.txt', 'w') as f:  # Use file to refer to the file object
+                with open('xgb_params.txt', 'w') as f:
                     f.write(str(score))
 
             # Get best score
