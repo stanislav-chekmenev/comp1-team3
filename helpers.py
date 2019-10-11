@@ -132,16 +132,34 @@ def data_transformation(df):
     df['Customers'].fillna(df['Customers'].mean(), inplace=True)
     df.loc[df['Open'] == 0, 'Customers'] = 0
     
-    df = df.drop({'Date','CompetitionStart','PromoStart','PromoInterval','Promo','Promo2','CompetitionDays','DayOfWeek'}, axis=1, errors='ignore') 
+    df = df.drop({'Date','CompetitionStart','PromoStart','PromoInterval','Promo','Promo2','DayOfWeek'}, axis=1, errors='ignore') 
     for i in {'Open', 'StateHoliday', 'SchoolHoliday'}:
         df[i].fillna('not_given', inplace=True)
-              
-    df = df.dropna(axis=0, how='any', subset=['Open', 'StateHoliday', 'SchoolHoliday','CompetitionDistance'])
+    
+    df = df.dropna(axis=0, how='any', subset=['Open', 'StateHoliday', 'SchoolHoliday','CompetitionDistance'])    
+
+    # Nas for comp days
+    df['CompetitionDays'].fillna(0, inplace=True)
+    # set feature COMPETITION INTENSITY
+    df['CompetitionIntensity'] = np.log((df['CompetitionDays']*(1/(df['CompetitionDistance'] + 1))+1) + 1e-2)
+    df['CompetitionIntensity'].replace([np.inf, -np.inf], np.nan)
+    df = df.dropna(axis=0, how='any', subset=['CompetitionIntensity'])    
+    
+    # calculate mean sales per number of customers per each store type
+    df['StoreInfo'] = df['Assortment'] + df['StoreType']
+    mean_sales = df.loc[df.Sales > 0, ['Sales', 'Customers', 'StoreInfo']].groupby('StoreInfo').mean()
+    mean_sales['Rel'] = mean_sales['Sales']/mean_sales['Customers']
+    b = mean_sales['Rel'].to_dict()
+    df['Rel'] = df['StoreInfo'].map(b)
+    
+    #Set Feature EXPECTED SALES2 (Adam's idea)
+    df['ExpectedSales'] = np.nan
+    df['ExpectedSales'] = df['Customers'] * df['Rel']
+    
     return df
 
 
-def parameter_search(X, y, method, params, random_seed, steps=None):
-    random_seed
+def parameter_search(X, y, method, params, steps=None):
     valid = {'elastic', 'rf', 'xgboost', 'stack'}
     if method not in valid:
         raise ValueError("Method must be one of %r." % valid)
@@ -160,10 +178,10 @@ def parameter_search(X, y, method, params, random_seed, steps=None):
         # Grid search for elastic net
         for ratio in params['ratio']:
             for alpha in params['alpha']:
-                elastic = ElasticNet(random_state=None, alpha=alpha, l1_ratio=ratio)
+                elastic = ElasticNet(alpha=alpha, l1_ratio=ratio)
                 elastic.fit(X_train, y_train)
                 preds = elastic.predict(X_cv)                                       
-                score.append((alpha, ratio, adam_metric(y_cv, preds)))
+                score.append((alpha, ratio, mea(y_cv, preds)))
 
                 # Get best score
                 best_params = min(score, key=itemgetter(2))[0:2]
@@ -191,7 +209,10 @@ def parameter_search(X, y, method, params, random_seed, steps=None):
                                                 max_features=max_features)
                 rf.fit(X_train, y_train)
                 preds = rf.predict(X_cv)                                       
-                score.append((n_estimators, max_depth, max_features, adam_metric(y_cv, preds)))
+                score.append((n_estimators, max_depth, max_features, np.sqrt(mean_squared_error(y_cv, preds))))
+                
+                with open('rf_params.txt', 'w') as f:  # Use file to refer to the file object
+                    f.write(str(score))
 
             # Get best score
             best_params = min(score, key=itemgetter(3))[0:3]
@@ -234,12 +255,14 @@ def parameter_search(X, y, method, params, random_seed, steps=None):
 
                 xgb_model.fit(X_train, y_train, eval_metric=fit_params['eval_metric'],
                               early_stopping_rounds=fit_params['early_stopping_rounds'], 
-                              eval_set=fit_params['eval_set'],
+                              eval_set=fit_params['eval_set'], 
                               verbose=False)
                 
                 preds = xgb_model.predict(X_cv)                                       
                 score.append((lr, n_estimators, max_depth, subsample, colsample_bytree, colsample_bylevel, reg_lambda, \
                               np.sqrt(mean_squared_error(y_cv, preds))))
+                with open('xgb_params.txt', 'w') as f:  # Use file to refer to the file object
+                    f.write(str(score))
 
             # Get best score
             best_params = min(score, key=itemgetter(7))[0:7]
@@ -248,7 +271,3 @@ def parameter_search(X, y, method, params, random_seed, steps=None):
         pass
     
     return best_params
-    
-    
-    
-    
